@@ -26,6 +26,37 @@
 
 include_recipe 'java'
 
+remote_file "#{Chef::Config[:file_cache_path]}/jetty-distribution-#{node[:jetty][:version]}.tar.gz" do
+	action :create_if_missing
+	source node[:jetty][:source]
+end
+
+bash "install_jetty" do
+	cwd "/usr/share"
+	code <<-EOH
+		mkdir -p #{node[:jetty][:webapp_dir]}
+		mkdir -p #{node[:jetty][:tmp_dir]}
+
+		tar -xzf #{Chef::Config[:file_cache_path]}/jetty-distribution-#{node[:jetty][:version]}.tar.gz
+		mv jetty-distribution-#{node[:jetty][:version]} jetty
+		cp #{node[:jetty][:home]}/bin/jetty.sh /etc/init.d/jetty
+		EOH
+	only_if { ::File.exists?("#{Chef::Config[:file_cache_path]}/jetty-distribution-#{node[:jetty][:version]}.tar.gz") }
+end
+
+link "#{node[:jetty][:home]}/etc" do
+	to node[:jetty][:config_dir]
+end
+
+link "#{node[:jetty][:home]}/logs" do
+	to node[:jetty][:log_dir]
+end
+
+%w{node[:jetty][:home] node[:jetty][:tmp_dir] node[:jetty][:webapp_dir]}.each do |d|
+	execute "chown -R #{node[:jetty][:user]}:#{node[:jetty][:group]} #{d}"
+	execute "chmod -R 0755 #{d}"
+end
+
 # create jetty user
 user node['jetty']['user'] do
 	comment 'Jetty User'
@@ -49,7 +80,7 @@ template "/etc/default/jetty" do
   owner "root"
   group "root"
   mode "0644"
-  notifies :restart, "service[jetty]"
+  notifies :restart, "service[jetty]", :delayed
 end
 
 template "#{node[:jetty][:config_dir]}/jetty.xml" do
@@ -57,5 +88,5 @@ template "#{node[:jetty][:config_dir]}/jetty.xml" do
   owner "root"
   group "root"
   mode "0644"
-  notifies :restart, "service[jetty]"
+  notifies :restart, "service[jetty]", :delayed
 end
