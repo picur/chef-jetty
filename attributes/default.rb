@@ -26,16 +26,16 @@
 
 # use JDK 7 as default
 override['java']['jdk_version'] = 7
-override['java']['home']		= '/usr/lib/jvm/java-7-openjdk-amd64'
 
 # defines jetty defaults
 default['jetty']['host']			= '0.0.0.0'
 default['jetty']['port']			= 8080
 default['jetty']['no_start']		= 0
-default['jetty']['jetty_args']		= ''
+default['jetty']['jetty_args']		= "jetty.port=#{node[:jetty][:port]}"
 default['jetty']['java_options']	= '-Xmx256m -Djava.awt.headless=true'
 
-default['jetty']['source'] 	= 'http://eclipse.org/downloads/download.php?file=/jetty/stable-9/dist/jetty-distribution-9.0.4.v20130625.tar.gz&r=1'
+default['jetty']['version'] = '9.0.4.v20130625'
+default['jetty']['source'] 	= "http://eclipse.org/downloads/download.php?file=/jetty/#{node['jetty']['version']}/dist/jetty-distribution-#{node['jetty']['version']}.tar.gz&r=1"
 
 case platform
 when 'debian', 'ubuntu'

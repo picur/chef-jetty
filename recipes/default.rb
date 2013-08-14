@@ -26,38 +26,23 @@
 
 include_recipe 'java'
 
-remote_file "#{Chef::Config[:file_cache_path]}/jetty-distribution-#{node[:jetty][:version]}.tar.gz" do
+jetty_archive = "#{Chef::Config[:file_cache_path]}/jetty-distribution-#{node[:jetty][:version]}.tar.gz"
+current_version = execute "head -n 1 #{node[:jetty][:home]}/VERSION.txt | cut -d ' ' -f 1 | cut -d '-' -f 2"
+
+remote_file jetty_archive do
 	action :create_if_missing
 	source node[:jetty][:source]
+	not_if { node[:jetty][:version].eql?(current_version.to_s) }
 end
 
-bash "install_jetty" do
-	cwd "/usr/share"
-	code <<-EOH
-		mkdir -p #{node[:jetty][:webapp_dir]}
-		mkdir -p #{node[:jetty][:tmp_dir]}
-
-		tar -xzf #{Chef::Config[:file_cache_path]}/jetty-distribution-#{node[:jetty][:version]}.tar.gz
-		mv jetty-distribution-#{node[:jetty][:version]} jetty
-		cp #{node[:jetty][:home]}/bin/jetty.sh /etc/init.d/jetty
-		EOH
-	only_if { ::File.exists?("#{Chef::Config[:file_cache_path]}/jetty-distribution-#{node[:jetty][:version]}.tar.gz") }
-end
-
-link "#{node[:jetty][:home]}/etc" do
-	to node[:jetty][:config_dir]
-end
-
-link "#{node[:jetty][:home]}/logs" do
-	to node[:jetty][:log_dir]
-end
-
-%w{node[:jetty][:home] node[:jetty][:tmp_dir] node[:jetty][:webapp_dir]}.each do |d|
-	execute "chown -R #{node[:jetty][:user]}:#{node[:jetty][:group]} #{d}"
-	execute "chmod -R 0755 #{d}"
+directory node[:jetty][:home] do
+	action :delete
+	recursive true
+	not_if { node[:jetty][:version].eql?(current_version.to_s) }
 end
 
 # create jetty user
+group node[:jetty][:group]
 user node['jetty']['user'] do
 	comment 'Jetty User'
 	home node['jetty']['home']
@@ -66,7 +51,60 @@ user node['jetty']['user'] do
 	action :create
 end
 
-# create jetty service
+bash "install_jetty" do
+	cwd "/usr/share"
+	code <<-EOH
+		tar -xzf #{jetty_archive}
+		mv jetty-distribution-#{node[:jetty][:version]} jetty
+		rm -rf jetty/{webapps,logs,webapps.demo}
+		EOH
+	only_if { ::File.exists?(jetty_archive) }
+end
+
+directory node[:jetty][:tmp_dir] do
+	owner node[:jetty][:user]
+	group node[:jetty][:group]
+	mode 0755
+	action :create
+	recursive true
+end
+
+directory node[:jetty][:webapp_dir] do
+	owner node[:jetty][:user]
+	group node[:jetty][:group]
+	mode 0755
+	action :create
+end
+
+directory node[:jetty][:log_dir] do
+	owner node[:jetty][:user]
+	group node[:jetty][:group]
+	mode 0755
+	action :create
+end
+
+link "#{node[:jetty][:home]}/webapps" do
+	to node[:jetty][:webapp_dir]
+	link_type :symbolic
+end
+
+link "/etc/init.d/jetty" do
+	to "#{node[:jetty][:home]}/bin/jetty.sh"
+	link_type :symbolic
+	only_if { ::File.exists?("#{node[:jetty][:home]}/bin/jetty.sh") }
+end
+
+bash "change_permissions" do
+	code <<-EOH
+		chown -R #{node[:jetty][:user]}:#{node[:jetty][:group]} #{node[:jetty][:home]}
+		chown -R #{node[:jetty][:user]}:#{node[:jetty][:group]} #{node[:jetty][:webapp_dir]}
+		chown -R #{node[:jetty][:user]}:#{node[:jetty][:group]} #{node[:jetty][:tmp_dir]}
+		chmod -R 0755 #{node[:jetty][:home]}
+		chmod -R 0755 #{node[:jetty][:webapp_dir]}
+		chmod -R 0755 #{node[:jetty][:tmp_dir]}
+		EOH
+end
+
 service "jetty" do
 	case node["platform"]
 	when "debian", "ubuntu"
@@ -83,10 +121,12 @@ template "/etc/default/jetty" do
   notifies :restart, "service[jetty]", :delayed
 end
 
-template "#{node[:jetty][:config_dir]}/jetty.xml" do
-  source "jetty.xml.erb"
-  owner "root"
-  group "root"
-  mode "0644"
-  notifies :restart, "service[jetty]", :delayed
+%w{jetty.conf jetty.xml jetty-logging.xml}.each do |conf|
+	template "#{node[:jetty][:config_dir]}/#{conf}" do
+	  source "#{conf}.erb"
+	  owner node[:jetty][:user]
+	  group node[:jetty][:group]
+	  mode "0755"
+	  notifies :restart, "service[jetty]", :delayed
+	end
 end
