@@ -74,12 +74,20 @@ directory node[:jetty][:webapp_dir] do
 	group node[:jetty][:group]
 	mode 0755
 	action :create
+	recursive true
 end
 
 directory node[:jetty][:log_dir] do
 	owner node[:jetty][:user]
 	group node[:jetty][:group]
 	mode 0755
+	action :create
+	recursive true
+end
+
+link "#{node[:jetty][:config_dir]}" do
+	to "#{node[:jetty][:home]}/etc"
+	link_type :symbolic
 	action :create
 end
 
