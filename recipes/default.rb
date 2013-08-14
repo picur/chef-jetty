@@ -91,11 +91,6 @@ link "#{node[:jetty][:config_dir]}" do
 	action :create
 end
 
-link "#{node[:jetty][:home]}/webapps" do
-	to node[:jetty][:webapp_dir]
-	link_type :symbolic
-end
-
 link "/etc/init.d/jetty" do
 	to "#{node[:jetty][:home]}/bin/jetty.sh"
 	link_type :symbolic
@@ -129,7 +124,7 @@ template "/etc/default/jetty" do
   notifies :restart, "service[jetty]", :delayed
 end
 
-%w{jetty.conf jetty.xml jetty-logging.xml}.each do |conf|
+%w{jetty.conf jetty.xml jetty-logging.xml jetty-deploy.xml}.each do |conf|
 	template "#{node[:jetty][:config_dir]}/#{conf}" do
 	  source "#{conf}.erb"
 	  owner node[:jetty][:user]
