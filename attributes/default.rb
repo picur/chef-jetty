@@ -25,7 +25,7 @@
 #
 
 # use JDK 7 as default
-override['java']['jdk_version'] = 7
+default['java']['jdk_version'] = 7
 
 # defines jetty defaults
 default['jetty']['host']			= '0.0.0.0'
